@@ -2,7 +2,4 @@ streamlit
 pandas
 openpyxl
 FPDF
-PIL
 plotly
-base64
-tempfile
