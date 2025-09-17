@@ -164,29 +164,50 @@ if inep_selecionado:
                 show_aprendizagem_adequada_card(aprendizado, small=True)
             st.markdown("<br>", unsafe_allow_html=True)
     
-    # Gerar o botão para gerar PDF da página inteira via html2canvas + jsPDF
-    components.html(
-        """
-        <script src="https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-        <script src="https://unpkg.com/jspdf@latest/dist/jspdf.umd.min.js"></script>
-        <button onclick="generatePDF()">📄 Gerar PDF da Página</button>
-        <script>
-            async function generatePDF() {
-                const { jsPDF } = window.jspdf;
-                const pdf = new jsPDF('p', 'pt', 'a4');
-                const content = document.body;
-                const canvas = await html2canvas(content);
-                const imgData = canvas.toDataURL('image/png');
-                const imgProps = pdf.getImageProperties(imgData);
-                const pdfWidth = pdf.internal.pageSize.getWidth();
-                const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-                pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-                pdf.save('Relatorio_SAEB_%s.pdf');
-            }
-        </script>
-        """ % (nome_escola.replace(" ", "_")),
-        height=100,
-    )
+    # Inject JS para gerar PDF da div principal do Streamlit app
+components.html(
+    """
+    <script src="https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <script src="https://unpkg.com/jspdf@latest/dist/jspdf.umd.min.js"></script>
+    <button id="btn_download_pdf" style="font-size:16px; padding:10px 15px; margin: 10px 0;">Gerar PDF da Página</button>
+    <script>
+      document.getElementById("btn_download_pdf").onclick = async function () {
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF('p', 'pt', 'a4');
+        const streamlitDoc = window.parent.document;
+        const mainContent = streamlitDoc.querySelector('.main > .block-container');
+
+        if (!mainContent) {
+          alert('Conteúdo principal não encontrado para PDF.');
+          return;
+        }
+
+        const canvas = await html2canvas(mainContent, {scale: 2});
+
+        const imgData = canvas.toDataURL('image/png');
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+
+        // Handle multipage if content is taller
+        const pageHeight = pdf.internal.pageSize.getHeight();
+        let heightLeft = pdfHeight - pageHeight;
+        let position = -pageHeight;
+
+        while(heightLeft > 0) {
+          pdf.addPage();
+          pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
+          heightLeft -= pageHeight;
+          position -= pageHeight;
+        }
+
+        pdf.save('pagina-streamlit.pdf');
+      }
+    </script>
+    """,
+    height=100,
+)
 else:
     st.title("📊 Análise de Desempenho SAEB por Níveis")
     st.info("Informe um código INEP válido para exibir os resultados.")
@@ -210,3 +231,4 @@ st.markdown("""
 © 2025 Desenvolvido por sua equipe de análise
 </footer>
 """, unsafe_allow_html=True)
+
