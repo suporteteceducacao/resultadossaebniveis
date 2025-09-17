@@ -13,7 +13,7 @@ try:
 except st.errors.StreamlitAPIException:
     pass
 
-caminho_planilha = "xls/Pasta_1.xlsx"
+caminho_planilha = "xls/Pasta_2.xlsx"
 caminho_logo = "img/logo_2021.png"
 
 @st.cache_data
@@ -251,3 +251,4 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
+
