@@ -13,8 +13,8 @@ try:
 except st.errors.StreamlitAPIException:
     pass
 
-caminho_planilha = "st/xls/Pasta_1.xlsx"
-caminho_logo = "st/img/logo_2021.png"
+caminho_planilha = "xls/Pasta_1.xlsx"
+caminho_logo = "img/logo_2021.png"
 
 @st.cache_data
 def load_data(path):
@@ -243,3 +243,4 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
+
