@@ -74,10 +74,27 @@ def make_fig(etapa, componente, inep, edicao, df):
     nivel_cols = [f"Nivel {i}" for i in range(11) if f"Nivel {i}" in df_sel.columns]
     valores_str = df_sel[nivel_cols].fillna("0").replace("-", "0")
     valores = valores_str.apply(pd.to_numeric, errors="coerce").fillna(0).values.flatten()
-    categorias, valores_categorias, cores, text_colors = agrupar_niveis(etapa, componente, valores)
+
+    categorias = ['INSUFICIENTE', 'BÁSICO', 'PROFICIENTE', 'AVANÇADO']
+    indices_map = {
+        'INSUFICIENTE': [0,1,2] if (etapa == 5 and componente == "MT") else [0,1],  # conforme lógica original para esses casos
+        'BÁSICO': [3,4] if (etapa == 5 and componente == "MT") else [2,3,4],
+        'PROFICIENTE': [5,6],
+        'AVANÇADO': [7,8,9]
+    }
+
+    # Calcular soma em ordem das categorias da legenda para cada categoria
+    valores_categorias = []
+    for cat in categorias:
+        indices = indices_map.get(cat, [])
+        soma = sum([valores[i] if i < len(valores) else 0 for i in indices])
+        valores_categorias.append(soma)
+
+    cores = ['#FF4136', '#FF851B', '#B0E57C', '#006400']
+    text_colors = ['white', 'black', 'black', 'white']
 
     fig = go.Figure()
-    # Criamos as barras na ordenação normal (vermelho primeiro)
+
     for val, cor, tcor, cat in zip(valores_categorias, cores, text_colors, categorias):
         fig.add_trace(go.Bar(
             y=[""],
@@ -94,7 +111,7 @@ def make_fig(etapa, componente, inep, edicao, df):
     fig.update_layout(
         barmode="stack",
         height=180,
-        margin=dict(t=40,b=40,l=20,r=20),  # Dar espaço extra inferior para legenda
+        margin=dict(t=40,b=40,l=20,r=20),
         showlegend=True,
         legend=dict(
             orientation='h',
@@ -104,7 +121,7 @@ def make_fig(etapa, componente, inep, edicao, df):
             x=0.5,
             font=dict(size=14),
         ),
-        legend_traceorder='reversed',  # Reverte a ordem para começar do vermelho
+        legend_traceorder='normal',  # Não inverte para mostrar de vermelho para verde escuro
         xaxis=dict(range=[0, 100], showgrid=False, zeroline=False, ticksuffix="%"),
         yaxis=dict(showticklabels=False),
         title=f"Desempenho em {componente} - {etapa}º Ano - INEP: {inep} - Edição: {edicao}",
@@ -113,6 +130,7 @@ def make_fig(etapa, componente, inep, edicao, df):
         paper_bgcolor='rgba(0,0,0,0)'
     )
     return fig, categorias, valores_categorias
+
 
 def show_aprendizagem_adequada_card(valor, small=False):
     valor_rounded = round(valor, 0)
@@ -230,4 +248,5 @@ st.markdown("""
 © 2025 Desenvolvido por sua equipe de análise
 </footer>
 """, unsafe_allow_html=True)
+
 
