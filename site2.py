@@ -3,10 +3,6 @@ import pandas as pd
 import plotly.graph_objects as go
 from PIL import Image
 from fpdf import FPDF
-import io
-import base64
-import tempfile
-import os
 
 # Configurar página
 try:
@@ -14,7 +10,7 @@ try:
 except st.errors.StreamlitAPIException:
     pass
 
-caminho_planilha = "xls/Pasta_2.xlsx"
+caminho_planilha = "xls/Pasta_1.xlsx"
 caminho_logo = "img/logo_2021.png"
 
 @st.cache_data
@@ -62,27 +58,22 @@ def agrupar_niveis(etapa, componente, valores):
     cores = {'INSUFICIENTE':'#FF4136', 'BÁSICO':'#FF851B', 'PROFICIENTE':'#B0E57C', 'AVANÇADO':'#006400'}
     text_colors = {'INSUFICIENTE':'white', 'BÁSICO':'black', 'PROFICIENTE':'black', 'AVANÇADO':'white'}
 
-    valores_categorias, categorias, cores_list, text_colors_list = [], [], [], []
+    valores_categorias, categorias = [], []
     for cat, indices in grupos.items():
         soma = sum([valores[i] if i < len(valores) else 0 for i in indices])
         valores_categorias.append(soma)
         categorias.append(cat)
-        cores_list.append(cores[cat])
-        text_colors_list.append(text_colors[cat])
 
-    return categorias, valores_categorias, cores_list, text_colors_list
+    return categorias, valores_categorias, list(cores.values()), list(text_colors.values())
 
 def make_fig(etapa, componente, inep, edicao, df):
     filtro = (df['INEP'] == inep) & (df['ETAPA'] == etapa) & (df['COMP_ CURRICULAR'] == componente) & (df['EDIÇÃO'] == edicao)
     df_sel = df.loc[filtro]
-
     if df_sel.empty:
         return None, None, None
-
     nivel_cols = [f"Nivel {i}" for i in range(11) if f"Nivel {i}" in df_sel.columns]
     valores_str = df_sel[nivel_cols].fillna("0").replace("-", "0")
     valores = valores_str.apply(pd.to_numeric, errors="coerce").fillna(0).values.flatten()
-
     categorias, valores_categorias, cores, text_colors = agrupar_niveis(etapa, componente, valores)
 
     fig = go.Figure()
@@ -98,17 +89,16 @@ def make_fig(etapa, componente, inep, edicao, df):
             insidetextanchor="middle",
             textfont=dict(color=tcor, size=14, family="Arial Bold"),
         ))
-
     fig.update_layout(
         barmode="stack",
         height=180,
-        margin=dict(t=40,b=20,l=20,r=180),
+        margin=dict(t=40, b=20, l=20, r=180),
         showlegend=True,
-        legend=dict(title="Categorias",x=1,y=0.5,xanchor="left",yanchor="middle",font=dict(size=14)),
-        xaxis=dict(range=[0, 100],showgrid=False,zeroline=False,ticksuffix="%"),
+        legend=dict(title="Categorias", x=1, y=0.5, xanchor="left", yanchor="middle", font=dict(size=14)),
+        xaxis=dict(range=[0, 100], showgrid=False, zeroline=False, ticksuffix="%"),
         yaxis=dict(showticklabels=False),
         title=f"Desempenho em {componente} - {etapa}º Ano - INEP: {inep} - Edição: {edicao}",
-        title_font=dict(size=18,family="Arial"),
+        title_font=dict(size=18, family="Arial"),
         plot_bgcolor='rgba(0,0,0,0)',
         paper_bgcolor='rgba(0,0,0,0)'
     )
@@ -120,16 +110,13 @@ def show_aprendizagem_adequada_card(valor, small=False):
     width = "180px" if small else "250px"
     padding = "10px" if small else "15px"
     font_size = "36px" if small else "48px"
-    st.markdown(
-        f"""
+    st.markdown(f"""
         <div style='background-color:{bg_color}; color:{text_color}; padding:{padding}; border-radius:10px; width:{width};
         margin:auto; box-shadow: 2px 2px 5px rgba(0,0,0,0.15); text-align:center;'>
             <h5>Aprendizagem Adequada</h5>
             <h1 style='font-size:{font_size}; margin:0;'>{valor_rounded:.0f}%</h1>
         </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    """, unsafe_allow_html=True)
 
 def criar_pdf(nome_escola, etapa, componente, resultados):
     pdf = FPDF()
@@ -139,31 +126,16 @@ def criar_pdf(nome_escola, etapa, componente, resultados):
     pdf.ln(10)
 
     for res in resultados:
-        titulo = f"Edição: {res['edicao']}"
-        aprendizagem = f"Aprendizagem Adequada: {res['aprendizagem']:.0f}%"
         pdf.set_font("Arial", "B", 14)
-        pdf.cell(0, 10, titulo, 0, 1)
+        pdf.cell(0, 10, f"Edição: {res['edicao']}", 0, 1)
         pdf.set_font("Arial", "", 12)
-        pdf.cell(0, 10, aprendizagem, 0, 1)
+        pdf.cell(0, 10, f"Aprendizagem Adequada: {res['aprendizagem']:.0f}%", 0, 1)
         pdf.ln(5)
-
-        # Adicionar imagens temporárias dos gráficos
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmpfile:
-            tmpfile.write(res['fig_bytes'])
-            tmpfile.flush()
-            pdf.image(tmpfile.name, w=pdf.w - 40)
-            os.unlink(tmpfile.name)
-        pdf.ln(10)
 
     return pdf.output(dest="S").encode("latin1")
 
-st.markdown("""
-<style>
-.css-1l02zno { justify-content: center; gap: 2.5rem; }
-.stSelectbox > label { font-weight: 600; font-size: 18px; }
-a:hover { background-color: #0b5ed7 !important; cursor: pointer; }
-</style>
-""", unsafe_allow_html=True)
+
+# INTERFACE
 
 logo = load_logo(caminho_logo)
 if logo:
@@ -213,9 +185,7 @@ if inep_selecionado:
                 aprendizado = valores_categorias[2] + valores_categorias[3]
                 show_aprendizagem_adequada_card(aprendizado, small=True)
             st.markdown("<br>", unsafe_allow_html=True)
-            # Converter figura para imagem PNG para PDF
-            img_bytes = fig.to_image(format="png")
-            resultados_pdf.append({'edicao': ed, 'fig_bytes': img_bytes, 'aprendizagem': aprendizado})
+            resultados_pdf.append({'edicao': ed, 'aprendizagem': aprendizado})
 
     if st.button("📄 Gerar PDF e Baixar Relatório"):
         pdf_bytes = criar_pdf(nome_escola, etapa, componente, resultados_pdf)
@@ -225,28 +195,28 @@ if inep_selecionado:
             file_name=f"Relatorio_SAEB_{nome_escola}.pdf",
             mime="application/pdf"
         )
+
 else:
     st.title("📊 Análise de Desempenho SAEB por Níveis")
     st.info("Informe um código INEP válido para exibir os resultados.")
 
 st.markdown("---")
-st.markdown(
-    """
-    <div style="background:#f9f9f9; border-radius:10px; padding:15px; font-family: Arial, sans-serif; max-width: 900px; margin: auto;">
-        <h3>Tipos de Aprendizado</h3>
-        <ul style="list-style-type:none; padding:0;">
-            <li><strong>Avançado:</strong> Aprendizado além da expectativa. Recomenda-se para os alunos neste nível atividades desafiadoras.</li>
-            <li><strong>Proficiente:</strong> Os alunos neste nível encontram-se preparados para continuar os estudos. Recomenda-se atividades de aprofundamento.</li>
-            <li><strong>Básico:</strong> Os alunos neste nível precisam melhorar. Sugere-se atividades de reforço.</li>
-            <li><strong>Insuficiente:</strong> Os alunos neste nível apresentaram pouquíssimo aprendizado. É necessário a recuperação de conteúdos.</li>
-        </ul>
-        <p><small>Fonte: <a href="https://qedu.org.br/" target="_blank">https://qedu.org.br/</a> INEP, 2023.</small></p>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
 
-st.markdown(
-    """
-    <footer style="text-align:center; color:#888; margin-top:50pxAqui está o código completo para o app com geração de PDF incluindo os gráficos convertidos para imagens PNG, integrados ao PDF com dados, e botão para download com nome do arquivo contendo o nome da escola conforme INEP digitado.
+st.markdown("""
+<div style="background:#f9f9f9; border-radius:10px; padding:15px; font-family: Arial, sans-serif; max-width: 900px; margin: auto;">
+    <h3>Tipos de Aprendizado</h3>
+    <ul style="list-style-type:none; padding:0;">
+        <li><strong>Avançado:</strong> Aprendizado além da expectativa. Recomenda-se para os alunos neste nível atividades desafiadoras.</li>
+        <li><strong>Proficiente:</strong> Os alunos neste nível encontram-se preparados para continuar os estudos. Recomenda-se atividades de aprofundamento.</li>
+        <li><strong>Básico:</strong> Os alunos neste nível precisam melhorar. Sugere-se atividades de reforço.</li>
+        <li><strong>Insuficiente:</strong> Os alunos neste nível apresentaram pouquíssimo aprendizado. É necessário a recuperação de conteúdos.</li>
+    </ul>
+    <p><small>Fonte: <a href="https://qedu.org.br/" target="_blank">https://qedu.org.br/</a> INEP, 2023.</small></p>
+</div>
+""", unsafe_allow_html=True)
 
+st.markdown("""
+<footer style="text-align:center; color:#888; margin-top:50px; padding:15px 0; font-size:14px; font-family: Arial, sans-serif; border-top: 1px solid #ddd;">
+© 2025 Desenvolvido por sua equipe de análise
+</footer>
+""", unsafe_allow_html=True)
