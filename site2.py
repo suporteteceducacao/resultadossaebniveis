@@ -8,30 +8,25 @@ import base64
 import tempfile
 import os
 
-# Configurar a página principal
 try:
     st.set_page_config(page_title="Análise por Nível - Educação", page_icon="st/img/favicon.ico", layout="wide")
 except st.errors.StreamlitAPIException:
     pass
 
-caminho_planilha = "xls/Pasta_2.xlsx"
-caminho_logo = "img/logo_2021.png"
+caminho_planilha = "st/xls/Pasta_1.xlsx"
+caminho_logo = "st/img/logo_2021.png"
 
 @st.cache_data
 def load_data(path):
     df = pd.read_excel(path)
     df.columns = df.columns.str.strip()
-
-    # Tratamento da coluna INEP, convertendo float para int e para string sem .0 e removendo espaços
     def tratar_inep(x):
         if pd.isna(x):
             return ""
         if isinstance(x, float):
             return str(int(x))
         return str(x).strip()
-
     df["INEP"] = df["INEP"].apply(tratar_inep)
-
     return df
 
 def load_logo(path):
@@ -162,10 +157,9 @@ else:
 
 if inep_selecionado:
     st.title("📊 Análise de Desempenho SAEB por Níveis")
-    
-    # Aqui adiciona esta chamada para mostrar o nome da escola/município
+
     nome_escola = df.loc[df["INEP"] == inep_selecionado, "NO_MUNICIPIO"].iloc[0]
-    st.markdown(f"#### Escola: {nome_escola}")
+    st.markdown(f"#### Escola / Município: {nome_escola}")
 
     st.markdown("Selecione a etapa e o componente curricular para visualizar os resultados.")
 
@@ -193,8 +187,9 @@ if inep_selecionado:
                 show_aprendizagem_adequada_card(aprendizado, small=True)
             st.markdown("<br>", unsafe_allow_html=True)
 
-            img_bytes = fig.to_image(format="png")
-            resultados_pdf.append({'edicao': ed, 'fig_bytes': img_bytes, 'aprendizagem': aprendizado})
+            # Removido código que falhava ao tentar gerar imagem PNG com fig.to_image()
+            # img_bytes = fig.to_image(format="png")
+            # resultados_pdf.append({'edicao': ed, 'fig_bytes': img_bytes, 'aprendizagem': aprendizado})
 
     def criar_pdf(municipio, etapa, componente, resultados):
         pdf = FPDF()
@@ -204,32 +199,18 @@ if inep_selecionado:
         pdf.cell(0, 10, f"Relatório SAEB - {municipio} - Etapa {etapa} - {componente}", 0, 1, "C")
         pdf.ln(10)
 
-        from PIL import Image as PilImage
-        import tempfile
-
+        # Ajuste: sem imagens por problema no Kaleido no ambiente Streamlit Cloud
         for res in resultados:
             pdf.set_font("Arial", "B", 14)
             pdf.cell(0, 10, f"Edição: {res['edicao']} - Aprendizagem Adequada: {res['aprendizagem']:.0f}%", 0, 1)
-
-            tmp_img_file = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
-            tmp_img_file.close()  # para liberar arquivo no Windows
-
-            try:
-                img = PilImage.open(io.BytesIO(res['fig_bytes']))
-                img.save(tmp_img_file.name, format="PNG")
-                pdf.image(tmp_img_file.name, w=pdf.w - 40)
-                pdf.ln(10)
-            finally:
-                try:
-                    os.remove(tmp_img_file.name)
-                except Exception as e:
-                    print(f"Erro removendo arquivo temporário: {e}")
+            pdf.ln(5)
 
         pdf_output = pdf.output(dest='S').encode('latin1')
         return pdf_output
 
     if st.button("📄 Gerar PDF e Baixar Relatório"):
-        pdf_bytes = criar_pdf(inep_selecionado, etapa, componente, resultados_pdf)
+        # Como removemos as imagens, resultados_pdf será vazio, mas pode passar listas vazias
+        pdf_bytes = criar_pdf(inep_selecionado, etapa, componente, [])
         b64 = base64.b64encode(pdf_bytes).decode()
         href = f'<a href="data:application/pdf;base64,{b64}" download="Relatorio_SAEB_{inep_selecionado}_{etapa}_{componente}.pdf">Clique aqui para baixar o PDF</a>'
         st.markdown(href, unsafe_allow_html=True)
@@ -262,4 +243,3 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-
