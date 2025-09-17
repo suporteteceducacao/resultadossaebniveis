@@ -8,6 +8,7 @@ import base64
 import tempfile
 import os
 
+# Configurar página
 try:
     st.set_page_config(page_title="Análise por Nível - Educação", page_icon="st/img/favicon.ico", layout="wide")
 except st.errors.StreamlitAPIException:
@@ -146,6 +147,7 @@ def criar_pdf(nome_escola, etapa, componente, resultados):
         pdf.cell(0, 10, aprendizagem, 0, 1)
         pdf.ln(5)
 
+        # Adicionar imagens temporárias dos gráficos
         with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmpfile:
             tmpfile.write(res['fig_bytes'])
             tmpfile.flush()
@@ -211,6 +213,7 @@ if inep_selecionado:
                 aprendizado = valores_categorias[2] + valores_categorias[3]
                 show_aprendizagem_adequada_card(aprendizado, small=True)
             st.markdown("<br>", unsafe_allow_html=True)
+            # Converter figura para imagem PNG para PDF
             img_bytes = fig.to_image(format="png")
             resultados_pdf.append({'edicao': ed, 'fig_bytes': img_bytes, 'aprendizagem': aprendizado})
 
@@ -245,10 +248,5 @@ st.markdown(
 
 st.markdown(
     """
-    <footer style="text-align:center; color:#888; margin-top:50px; padding:15px 0; font-size:14px; font-family: Arial, sans-serif; border-top: 1px solid #ddd;">
-    © 2025 Desenvolvido por sua equipe de análise
-    </footer>
-    """,
-    unsafe_allow_html=True,
-)
+    <footer style="text-align:center; color:#888; margin-top:50pxAqui está o código completo para o app com geração de PDF incluindo os gráficos convertidos para imagens PNG, integrados ao PDF com dados, e botão para download com nome do arquivo contendo o nome da escola conforme INEP digitado.
 
