@@ -14,7 +14,7 @@ try:
 except st.errors.StreamlitAPIException:
     pass
 
-caminho_planilha = "st/xls/Pasta_1.xlsx"
+caminho_planilha = "st/xls/Pasta_2.xlsx"
 caminho_logo = "st/img/logo_2021.png"
 
 @st.cache_data
@@ -162,6 +162,11 @@ else:
 
 if inep_selecionado:
     st.title("📊 Análise de Desempenho SAEB por Níveis")
+    
+    # Aqui adiciona esta chamada para mostrar o nome da escola/município
+    nome_escola = df.loc[df["INEP"] == inep_selecionado, "NO_MUNICIPIO"].iloc[0]
+    st.markdown(f"#### Escola: {nome_escola}")
+
     st.markdown("Selecione a etapa e o componente curricular para visualizar os resultados.")
 
     etapas_disponiveis = sorted(df[df["INEP"] == inep_selecionado]["ETAPA"].unique())
