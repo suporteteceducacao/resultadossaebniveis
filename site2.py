@@ -74,11 +74,10 @@ def make_fig(etapa, componente, inep, edicao, df):
     nivel_cols = [f"Nivel {i}" for i in range(11) if f"Nivel {i}" in df_sel.columns]
     valores_str = df_sel[nivel_cols].fillna("0").replace("-", "0")
     valores = valores_str.apply(pd.to_numeric, errors="coerce").fillna(0).values.flatten()
-    categorias, valores_categorias, _, _ = agrupar_niveis(etapa, componente, valores)
+    categorias, valores_categorias, cores, text_colors = agrupar_niveis(etapa, componente, valores)
 
     fig = go.Figure()
-    cores = ['#FF4136', '#FF851B', '#B0E57C', '#006400']
-    text_colors = ['white', 'black', 'black', 'white']
+    # Criamos as barras na ordenação normal (vermelho primeiro)
     for val, cor, tcor, cat in zip(valores_categorias, cores, text_colors, categorias):
         fig.add_trace(go.Bar(
             y=[""],
@@ -91,13 +90,22 @@ def make_fig(etapa, componente, inep, edicao, df):
             insidetextanchor="middle",
             textfont=dict(color=tcor, size=14, family="Arial Bold"),
         ))
+
     fig.update_layout(
         barmode="stack",
         height=180,
-        margin=dict(t=40,b=20,l=20,r=180),
+        margin=dict(t=40,b=40,l=20,r=20),  # Dar espaço extra inferior para legenda
         showlegend=True,
-        legend=dict(title="Categorias",x=1,y=0.5,xanchor="left",yanchor="middle",font=dict(size=14)),
-        xaxis=dict(range=[0, 100],showgrid=False,zeroline=False,ticksuffix="%"),
+        legend=dict(
+            orientation='h',
+            yanchor='top',
+            y=-0.3,
+            xanchor='center',
+            x=0.5,
+            font=dict(size=14),
+        ),
+        legend_traceorder='reversed',  # Reverte a ordem para começar do vermelho
+        xaxis=dict(range=[0, 100], showgrid=False, zeroline=False, ticksuffix="%"),
         yaxis=dict(showticklabels=False),
         title=f"Desempenho em {componente} - {etapa}º Ano - INEP: {inep} - Edição: {edicao}",
         title_font=dict(size=18,family="Arial"),
@@ -222,3 +230,4 @@ st.markdown("""
 © 2025 Desenvolvido por sua equipe de análise
 </footer>
 """, unsafe_allow_html=True)
+
