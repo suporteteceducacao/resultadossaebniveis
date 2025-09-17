@@ -13,7 +13,7 @@ try:
 except st.errors.StreamlitAPIException:
     pass
 
-caminho_planilha = "xls/Pasta_2.xlsx"
+caminho_planilha = "xls/Pasta_1.xlsx"
 caminho_logo = "img/logo_2021.png"
 
 @st.cache_data
@@ -130,6 +130,31 @@ def show_aprendizagem_adequada_card(valor, small=False):
         unsafe_allow_html=True,
     )
 
+def criar_pdf(nome_escola, etapa, componente, resultados):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", "B", 16)
+    pdf.cell(0, 10, f"Relatório SAEB - {nome_escola} - Etapa {etapa} - {componente}", 0, 1, "C")
+    pdf.ln(10)
+
+    for res in resultados:
+        titulo = f"Edição: {res['edicao']}"
+        aprendizagem = f"Aprendizagem Adequada: {res['aprendizagem']:.0f}%"
+        pdf.set_font("Arial", "B", 14)
+        pdf.cell(0, 10, titulo, 0, 1)
+        pdf.set_font("Arial", "", 12)
+        pdf.cell(0, 10, aprendizagem, 0, 1)
+        pdf.ln(5)
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmpfile:
+            tmpfile.write(res['fig_bytes'])
+            tmpfile.flush()
+            pdf.image(tmpfile.name, w=pdf.w - 40)
+            os.unlink(tmpfile.name)
+        pdf.ln(10)
+
+    return pdf.output(dest="S").encode("latin1")
+
 st.markdown("""
 <style>
 .css-1l02zno { justify-content: center; gap: 2.5rem; }
@@ -186,34 +211,17 @@ if inep_selecionado:
                 aprendizado = valores_categorias[2] + valores_categorias[3]
                 show_aprendizagem_adequada_card(aprendizado, small=True)
             st.markdown("<br>", unsafe_allow_html=True)
-
-            # Removido código que falhava ao tentar gerar imagem PNG com fig.to_image()
-            # img_bytes = fig.to_image(format="png")
-            # resultados_pdf.append({'edicao': ed, 'fig_bytes': img_bytes, 'aprendizagem': aprendizado})
-
-    def criar_pdf(municipio, etapa, componente, resultados):
-        pdf = FPDF()
-        pdf.set_auto_page_break(auto=True, margin=15)
-        pdf.add_page()
-        pdf.set_font("Arial", "B", 16)
-        pdf.cell(0, 10, f"Relatório SAEB - {municipio} - Etapa {etapa} - {componente}", 0, 1, "C")
-        pdf.ln(10)
-
-        # Ajuste: sem imagens por problema no Kaleido no ambiente Streamlit Cloud
-        for res in resultados:
-            pdf.set_font("Arial", "B", 14)
-            pdf.cell(0, 10, f"Edição: {res['edicao']} - Aprendizagem Adequada: {res['aprendizagem']:.0f}%", 0, 1)
-            pdf.ln(5)
-
-        pdf_output = pdf.output(dest='S').encode('latin1')
-        return pdf_output
+            img_bytes = fig.to_image(format="png")
+            resultados_pdf.append({'edicao': ed, 'fig_bytes': img_bytes, 'aprendizagem': aprendizado})
 
     if st.button("📄 Gerar PDF e Baixar Relatório"):
-        # Como removemos as imagens, resultados_pdf será vazio, mas pode passar listas vazias
-        pdf_bytes = criar_pdf(inep_selecionado, etapa, componente, [])
-        b64 = base64.b64encode(pdf_bytes).decode()
-        href = f'<a href="data:application/pdf;base64,{b64}" download="Relatorio_SAEB_{inep_selecionado}_{etapa}_{componente}.pdf">Clique aqui para baixar o PDF</a>'
-        st.markdown(href, unsafe_allow_html=True)
+        pdf_bytes = criar_pdf(nome_escola, etapa, componente, resultados_pdf)
+        st.download_button(
+            label="Clique aqui para baixar o PDF",
+            data=pdf_bytes,
+            file_name=f"Relatorio_SAEB_{nome_escola}.pdf",
+            mime="application/pdf"
+        )
 else:
     st.title("📊 Análise de Desempenho SAEB por Níveis")
     st.info("Informe um código INEP válido para exibir os resultados.")
@@ -238,11 +246,8 @@ st.markdown(
 st.markdown(
     """
     <footer style="text-align:center; color:#888; margin-top:50px; padding:15px 0; font-size:14px; font-family: Arial, sans-serif; border-top: 1px solid #ddd;">
-    © 2025 Resultados SAEB por nível. Setor de Processamento e Monitoramento de Resultados - SPMR-DAM/SME Maracanaú. <br>
+    © 2025 Desenvolvido por sua equipe de análise
     </footer>
     """,
     unsafe_allow_html=True,
 )
-
-
-
