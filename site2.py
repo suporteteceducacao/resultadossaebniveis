@@ -1,8 +1,8 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import plotly.graph_objects as go
 from PIL import Image
-from fpdf import FPDF
 
 # Configurar página
 try:
@@ -74,9 +74,11 @@ def make_fig(etapa, componente, inep, edicao, df):
     nivel_cols = [f"Nivel {i}" for i in range(11) if f"Nivel {i}" in df_sel.columns]
     valores_str = df_sel[nivel_cols].fillna("0").replace("-", "0")
     valores = valores_str.apply(pd.to_numeric, errors="coerce").fillna(0).values.flatten()
-    categorias, valores_categorias, cores, text_colors = agrupar_niveis(etapa, componente, valores)
+    categorias, valores_categorias, _, _ = agrupar_niveis(etapa, componente, valores)
 
     fig = go.Figure()
+    cores = ['#FF4136', '#FF851B', '#B0E57C', '#006400']
+    text_colors = ['white', 'black', 'black', 'white']
     for val, cor, tcor, cat in zip(valores_categorias, cores, text_colors, categorias):
         fig.add_trace(go.Bar(
             y=[""],
@@ -92,20 +94,20 @@ def make_fig(etapa, componente, inep, edicao, df):
     fig.update_layout(
         barmode="stack",
         height=180,
-        margin=dict(t=40, b=20, l=20, r=180),
+        margin=dict(t=40,b=20,l=20,r=180),
         showlegend=True,
-        legend=dict(title="Categorias", x=1, y=0.5, xanchor="left", yanchor="middle", font=dict(size=14)),
-        xaxis=dict(range=[0, 100], showgrid=False, zeroline=False, ticksuffix="%"),
+        legend=dict(title="Categorias",x=1,y=0.5,xanchor="left",yanchor="middle",font=dict(size=14)),
+        xaxis=dict(range=[0, 100],showgrid=False,zeroline=False,ticksuffix="%"),
         yaxis=dict(showticklabels=False),
         title=f"Desempenho em {componente} - {etapa}º Ano - INEP: {inep} - Edição: {edicao}",
-        title_font=dict(size=18, family="Arial"),
+        title_font=dict(size=18,family="Arial"),
         plot_bgcolor='rgba(0,0,0,0)',
         paper_bgcolor='rgba(0,0,0,0)'
     )
     return fig, categorias, valores_categorias
 
 def show_aprendizagem_adequada_card(valor, small=False):
-    valor_rounded = round(valor, 0)
+    valor_rounded = round(valor,0)
     bg_color, text_color = cor_card_por_percentual(valor_rounded)
     width = "180px" if small else "250px"
     padding = "10px" if small else "15px"
@@ -116,32 +118,14 @@ def show_aprendizagem_adequada_card(valor, small=False):
             <h5>Aprendizagem Adequada</h5>
             <h1 style='font-size:{font_size}; margin:0;'>{valor_rounded:.0f}%</h1>
         </div>
-    """, unsafe_allow_html=True)
-
-def criar_pdf(nome_escola, etapa, componente, resultados):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", "B", 16)
-    pdf.cell(0, 10, f"Relatório SAEB - {nome_escola} - Etapa {etapa} - {componente}", 0, 1, "C")
-    pdf.ln(10)
-
-    for res in resultados:
-        pdf.set_font("Arial", "B", 14)
-        pdf.cell(0, 10, f"Edição: {res['edicao']}", 0, 1)
-        pdf.set_font("Arial", "", 12)
-        pdf.cell(0, 10, f"Aprendizagem Adequada: {res['aprendizagem']:.0f}%", 0, 1)
-        pdf.ln(5)
-
-    return pdf.output(dest="S").encode("latin1")
-
-
-# INTERFACE
+        """, unsafe_allow_html=True)
 
 logo = load_logo(caminho_logo)
 if logo:
     st.sidebar.image(logo, use_container_width=True)
 
 df = load_data(caminho_planilha)
+
 inep_codigos = set(df["INEP"].dropna().unique())
 
 st.sidebar.title("Busca por Código INEP")
@@ -156,23 +140,17 @@ else:
 
 if inep_selecionado:
     st.title("📊 Análise de Desempenho SAEB por Níveis")
-
     nome_escola = df.loc[df["INEP"] == inep_selecionado, "NO_MUNICIPIO"].iloc[0]
     st.markdown(f"#### Escola / Município: {nome_escola}")
-
     st.markdown("Selecione a etapa e o componente curricular para visualizar os resultados.")
-
     etapas_disponiveis = sorted(df[df["INEP"] == inep_selecionado]["ETAPA"].unique())
     componentes_disponiveis = sorted(df[df["INEP"] == inep_selecionado]["COMP_ CURRICULAR"].unique())
-
     col1, col2 = st.columns(2)
     with col1:
         etapa = st.selectbox("Etapa", etapas_disponiveis)
     with col2:
         componente = st.selectbox("Componente Curricular", componentes_disponiveis)
-
     edicoes = sorted(df[(df["INEP"] == inep_selecionado) & (df["ETAPA"] == etapa) & (df["COMP_ CURRICULAR"] == componente)]["EDIÇÃO"].unique())
-    resultados_pdf = []
 
     for ed in edicoes:
         fig, categorias, valores_categorias = make_fig(etapa, componente, inep_selecionado, ed, df)
@@ -185,23 +163,35 @@ if inep_selecionado:
                 aprendizado = valores_categorias[2] + valores_categorias[3]
                 show_aprendizagem_adequada_card(aprendizado, small=True)
             st.markdown("<br>", unsafe_allow_html=True)
-            resultados_pdf.append({'edicao': ed, 'aprendizagem': aprendizado})
-
-    if st.button("📄 Gerar PDF e Baixar Relatório"):
-        pdf_bytes = criar_pdf(nome_escola, etapa, componente, resultados_pdf)
-        st.download_button(
-            label="Clique aqui para baixar o PDF",
-            data=pdf_bytes,
-            file_name=f"Relatorio_SAEB_{nome_escola}.pdf",
-            mime="application/pdf"
-        )
-
+    
+    # Gerar o botão para gerar PDF da página inteira via html2canvas + jsPDF
+    components.html(
+        """
+        <script src="https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+        <script src="https://unpkg.com/jspdf@latest/dist/jspdf.umd.min.js"></script>
+        <button onclick="generatePDF()">📄 Gerar PDF da Página</button>
+        <script>
+            async function generatePDF() {
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF('p', 'pt', 'a4');
+                const content = document.body;
+                const canvas = await html2canvas(content);
+                const imgData = canvas.toDataURL('image/png');
+                const imgProps = pdf.getImageProperties(imgData);
+                const pdfWidth = pdf.internal.pageSize.getWidth();
+                const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+                pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+                pdf.save('Relatorio_SAEB_%s.pdf');
+            }
+        </script>
+        """ % (nome_escola.replace(" ", "_")),
+        height=100,
+    )
 else:
     st.title("📊 Análise de Desempenho SAEB por Níveis")
     st.info("Informe um código INEP válido para exibir os resultados.")
 
 st.markdown("---")
-
 st.markdown("""
 <div style="background:#f9f9f9; border-radius:10px; padding:15px; font-family: Arial, sans-serif; max-width: 900px; margin: auto;">
     <h3>Tipos de Aprendizado</h3>
@@ -220,4 +210,3 @@ st.markdown("""
 © 2025 Desenvolvido por sua equipe de análise
 </footer>
 """, unsafe_allow_html=True)
-
