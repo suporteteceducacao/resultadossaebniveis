@@ -4,3 +4,4 @@ openpyxl
 FPDF
 plotly
 kaleido
+pip install -U plotly 
