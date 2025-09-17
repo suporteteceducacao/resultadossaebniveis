@@ -107,7 +107,7 @@ def make_fig(etapa, componente, inep, edicao, df):
     return fig, categorias, valores_categorias
 
 def show_aprendizagem_adequada_card(valor, small=False):
-    valor_rounded = round(valor,0)
+    valor_rounded = round(valor, 0)
     bg_color, text_color = cor_card_por_percentual(valor_rounded)
     width = "180px" if small else "250px"
     padding = "10px" if small else "15px"
@@ -125,7 +125,6 @@ if logo:
     st.sidebar.image(logo, use_container_width=True)
 
 df = load_data(caminho_planilha)
-
 inep_codigos = set(df["INEP"].dropna().unique())
 
 st.sidebar.title("Busca por Código INEP")
@@ -163,51 +162,43 @@ if inep_selecionado:
                 aprendizado = valores_categorias[2] + valores_categorias[3]
                 show_aprendizagem_adequada_card(aprendizado, small=True)
             st.markdown("<br>", unsafe_allow_html=True)
-    
-    # Inject JS para gerar PDF da div principal do Streamlit app
-components.html(
-    """
-    <script src="https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-    <script src="https://unpkg.com/jspdf@latest/dist/jspdf.umd.min.js"></script>
-    <button id="btn_download_pdf" style="font-size:16px; padding:10px 15px; margin: 10px 0;">Gerar PDF da Página</button>
-    <script>
-      document.getElementById("btn_download_pdf").onclick = async function () {
-        const { jsPDF } = window.jspdf;
-        const pdf = new jsPDF('p', 'pt', 'a4');
-        const streamlitDoc = window.parent.document;
-        const mainContent = streamlitDoc.querySelector('.main > .block-container');
 
-        if (!mainContent) {
-          alert('Conteúdo principal não encontrado para PDF.');
-          return;
-        }
-
-        const canvas = await html2canvas(mainContent, {scale: 2});
-
-        const imgData = canvas.toDataURL('image/png');
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-
-        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-
-        // Handle multipage if content is taller
-        const pageHeight = pdf.internal.pageSize.getHeight();
-        let heightLeft = pdfHeight - pageHeight;
-        let position = -pageHeight;
-
-        while(heightLeft > 0) {
-          pdf.addPage();
-          pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
-          heightLeft -= pageHeight;
-          position -= pageHeight;
-        }
-
-        pdf.save('pagina-streamlit.pdf');
-      }
-    </script>
-    """,
-    height=100,
-)
+    components.html(
+        f"""
+        <script src="https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+        <script src="https://unpkg.com/jspdf@latest/dist/jspdf.umd.min.js"></script>
+        <button style="padding:10px; font-size: 18px;" id="btn_pdf">📄 Gerar PDF da Página</button>
+        <script>
+        document.getElementById("btn_pdf").onclick = async function() {{
+            const {{ jsPDF }} = window.jspdf;
+            const pdf = new jsPDF('p', 'pt', 'a4');
+            const streamlitDoc = window.parent.document;
+            const mainContent = streamlitDoc.querySelector('.main > .block-container');
+            if (!mainContent) {{
+                alert("Conteúdo principal não encontrado para criação do PDF.");
+                return;
+            }}
+            const canvas = await html2canvas(mainContent, {{scale: 2}});
+            const imgData = canvas.toDataURL('image/png');
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+            const pageHeight = pdf.internal.pageSize.getHeight();
+            let heightLeft = pdfHeight - pageHeight;
+            let position = -pageHeight;
+            while (heightLeft > 0) {{
+                pdf.addPage();
+                pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
+                heightLeft -= pageHeight;
+                position -= pageHeight;
+            }}
+            const fileName = "Relatorio_SAEB_{nome_escola.replace(' ', '_')}.pdf";
+            pdf.save(fileName);
+        }};
+        </script>
+        """,
+        height=100,
+    )
 else:
     st.title("📊 Análise de Desempenho SAEB por Níveis")
     st.info("Informe um código INEP válido para exibir os resultados.")
@@ -231,4 +222,3 @@ st.markdown("""
 © 2025 Desenvolvido por sua equipe de análise
 </footer>
 """, unsafe_allow_html=True)
-
