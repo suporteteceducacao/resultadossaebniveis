@@ -46,12 +46,13 @@ def load_logo(path):
 
 def cor_card_por_percentual(pct):
     if pct <= 25:
-        return "#FF4136", "white"
+        return "#FF4136", "white"  # texto branco no fundo vermelho forte
     elif pct <= 50:
         return "#FF851B", "black"
     elif pct <= 75:
         return "#B0E57C", "black"
     else:
+        # Fundo verde escuro pede texto branco para boa legibilidade
         return "#006400", "white"
 
 def agrupar_niveis(etapa, componente, valores):
@@ -63,10 +64,6 @@ def agrupar_niveis(etapa, componente, valores):
         grupos = {'INSUFICIENTE': [0], 'BÁSICO':[1,2,3], 'PROFICIENTE':[4,5], 'AVANÇADO':[6,7,8]}
     elif etapa == 9 and componente == "MT":
         grupos = {'INSUFICIENTE':[0,1], 'BÁSICO':[2,3,4], 'PROFICIENTE':[5,6], 'AVANÇADO':[7,8,9]}
-    elif etapa == 3 and componente == "LP":
-        grupos = {'INSUFICIENTE':[0,1], 'BÁSICO':[2,3], 'PROFICIENTE':[4,5,6], 'AVANÇADO':[7,8]}
-    elif etapa == 3 and componente == "MT":
-        grupos = {'INSUFICIENTE':[0,1,2], 'BÁSICO':[3,4,5], 'PROFICIENTE':[6,7], 'AVANÇADO':[8,9,10]}
     else:
         raise ValueError(f"Configuração de grupos não definida para etapa {etapa} e componente '{componente}'")
 
@@ -104,6 +101,25 @@ def show_aprendizagem_adequada_card(valor, small=False):
         </div>
         """, unsafe_allow_html=True)
 
+# CSS maior e mais legível para título e nome da escola
+st.markdown("""
+<style>
+h1, h2, h3, .school-name, .main > div > h1 {
+   font-size: 28px !important;
+   font-weight: 700 !important;
+   color: #222222 !important;
+   letter-spacing: 0.03em;
+   margin-bottom: 0.3em;
+}
+.school-name {
+   font-size: 24px !important;
+   font-weight: 700 !important;
+   color: #000000 !important;
+   margin-bottom: 1em;
+}
+</style>
+""", unsafe_allow_html=True)
+
 def make_fig(etapa, componente, inep, edicao, df):
     filtro = (df['INEP'] == inep) & (df['ETAPA_NUM'] == etapa) & (df['COMP_ CURRICULAR'] == componente) & (df['EDIÇÃO'] == edicao)
     df_sel = df.loc[filtro]
@@ -138,13 +154,11 @@ def make_fig(etapa, componente, inep, edicao, df):
         xaxis=dict(range=[0, 100], showgrid=False, zeroline=False, ticksuffix="%"),
         yaxis=dict(showticklabels=False),
         title=f"Desempenho em {componente} - {etapa}º Ano - INEP: {inep} - Edição: {edicao}",
-        title_font=dict(size=18,family="Arial"),
+        title_font=dict(size=22,family="Arial", color="#222222"),
         plot_bgcolor='rgba(0,0,0,0)',
         paper_bgcolor='rgba(0,0,0,0)'
     )
     return fig, categorias, valores_categorias
-
-# Início da interface
 
 logo = load_logo(caminho_logo)
 if logo:
@@ -165,8 +179,7 @@ else:
 
 if inep_selecionado:
     st.title("📊 Análise de Desempenho SAEB por Níveis")
-    nome_escola = df.loc[df["INEP"] == inep_selecionado, "NO_MUNICIPIO"].iloc[0]
-    st.markdown(f"#### Escola / Município: {nome_escola}")
+    st.markdown(f"<div class='school-name'>Escola / Município: {df.loc[df['INEP'] == inep_selecionado, 'NO_MUNICIPIO'].iloc[0]}</div>", unsafe_allow_html=True)
     st.markdown("Selecione a etapa e o componente curricular para visualizar os resultados.")
 
     etapas_disponiveis = sorted(df[df["INEP"] == inep_selecionado]["ETAPA_NUM"].dropna().unique())
@@ -178,7 +191,6 @@ if inep_selecionado:
     with col2:
         componente = st.selectbox("Componente Curricular", componentes_disponiveis)
 
-    # Mostrar gráficos para todas as edições existentes
     edicoes = sorted(df[(df["INEP"] == inep_selecionado) & (df["ETAPA_NUM"] == etapa) & (df["COMP_ CURRICULAR"] == componente)]["EDIÇÃO"].unique())
 
     for ed in edicoes:
@@ -189,45 +201,66 @@ if inep_selecionado:
             with col_grafico:
                 st.plotly_chart(fig, use_container_width=True)
             with col_card:
-                aprendizado = valores_categorias[2] + valores_categorias[3]  # Proficiente + Avançado
+                aprendizado = valores_categorias[2] + valores_categorias[3]
                 show_aprendizagem_adequada_card(aprendizado, small=True)
             st.markdown("<br>", unsafe_allow_html=True)
 
     components.html(
         f"""
+        <style>
+          #btn_pdf {{
+            padding: 6px 15px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #333;
+            background-color: transparent;
+            border: 2px solid #333;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 10px;
+          }}
+          #btn_pdf:hover {{
+            background-color: #333;
+            color: white;
+          }}
+        </style>
+        <button id="btn_pdf">📄 Gerar PDF</button>
         <script src="https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
         <script src="https://unpkg.com/jspdf@latest/dist/jspdf.umd.min.js"></script>
-        <button style="padding:10px; font-size: 18px;" id="btn_pdf">📄 Gerar PDF da Página</button>
         <script>
         document.getElementById("btn_pdf").onclick = async function() {{
-            const {{ jsPDF }} = window.jspdf;
-            const pdf = new jsPDF('p', 'pt', 'a4');
-            const streamlitDoc = window.parent.document;
-            const mainContent = streamlitDoc.querySelector('.main > .block-container');
-            if (!mainContent) {{
-                alert("Conteúdo principal não encontrado para criação do PDF.");
-                return;
-            }}
-            const canvas = await html2canvas(mainContent, {{scale: 2}});
-            const imgData = canvas.toDataURL('image/png');
-            const pdfWidth = pdf.internal.pageSize.getWidth();
-            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-            const pageHeight = pdf.internal.pageSize.getHeight();
-            let heightLeft = pdfHeight - pageHeight;
-            let position = -pageHeight;
-            while (heightLeft > 0) {{
-                pdf.addPage();
-                pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
-                heightLeft -= pageHeight;
-                position -= pageHeight;
-            }}
-            const fileName = "Relatorio_SAEB_{nome_escola.replace(' ', '_')}.pdf";
-            pdf.save(fileName);
+          const {{ jsPDF }} = window.jspdf;
+          const pdf = new jsPDF('p', 'pt', 'a4');
+          const streamlitDoc = window.parent.document;
+          const mainContent = streamlitDoc.querySelector('.block-container');
+          if (!mainContent) {{
+            alert("Conteúdo principal não encontrado para criação do PDF.");
+            return;
+          }}
+          const scale = 2;
+          const canvas = await html2canvas(mainContent, {{ scale }});
+          const imgData = canvas.toDataURL('image/png');
+          const pdfWidth = pdf.internal.pageSize.getWidth();
+          const pdfHeight = pdf.internal.pageSize.getHeight();
+          const imgWidth = pdfWidth;
+          const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+          let heightLeft = imgHeight;
+          let position = 0;
+          pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+          heightLeft -= pdfHeight;
+          while (heightLeft > 0) {{
+            position = heightLeft - imgHeight;
+            pdf.addPage();
+            pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+            heightLeft -= pdfHeight;
+          }}
+          const fileName = "Relatorio_SAEB_{inep_selecionado.replace(' ', '_')}_Etapa_{etapa}_Componente_{componente.replace(' ', '_')}.pdf";
+          pdf.save(fileName);
         }};
         </script>
         """,
-        height=100,
+        height=200,
     )
 else:
     st.title("📊 Análise de Desempenho SAEB por Níveis")
