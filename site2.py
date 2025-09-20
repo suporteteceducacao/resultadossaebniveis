@@ -282,7 +282,8 @@ st.markdown("""
 
 st.markdown("""
 <footer style="text-align:center; color:#888; margin-top:50px; padding:15px 0; font-size:14px; font-family: Arial, sans-serif; border-top: 1px solid #ddd;">
-© 2025 Desenvolvido por sua equipe de análise
+© 2025 Resultado SAEB por níveis. Setor de Processamento e Monitoramento de Resultados - SPMR-DAM/SME Maracanaú. <br>
 </footer>
 """, unsafe_allow_html=True)
+
 
