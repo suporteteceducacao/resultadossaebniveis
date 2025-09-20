@@ -3,20 +3,22 @@ import streamlit.components.v1 as components
 import pandas as pd
 import plotly.graph_objects as go
 from PIL import Image
+import re
 
-# Configurar página
+# Configuração da página
 try:
     st.set_page_config(page_title="Análise por Nível - Educação", page_icon="st/img/favicon.ico", layout="wide")
 except st.errors.StreamlitAPIException:
     pass
 
-caminho_planilha = "xls/Pasta_2.xlsx"
-caminho_logo = "img/logo_2021.png"
+caminho_planilha = "st/xls/Pasta_2.xlsx"
+caminho_logo = "st/img/logo_2021.png"
 
 @st.cache_data
 def load_data(path):
     df = pd.read_excel(path)
     df.columns = df.columns.str.strip()
+
     def tratar_inep(x):
         if pd.isna(x):
             return ""
@@ -24,6 +26,15 @@ def load_data(path):
             return str(int(x))
         return str(x).strip()
     df["INEP"] = df["INEP"].apply(tratar_inep)
+
+    def extrair_numero_etapa(etapa_str):
+        if pd.isna(etapa_str):
+            return None
+        m = re.search(r"\d+", str(etapa_str))
+        if m:
+            return int(m.group())
+        return None
+    df["ETAPA_NUM"] = df["ETAPA"].apply(extrair_numero_etapa)
     return df
 
 def load_logo(path):
@@ -52,85 +63,32 @@ def agrupar_niveis(etapa, componente, valores):
         grupos = {'INSUFICIENTE': [0], 'BÁSICO':[1,2,3], 'PROFICIENTE':[4,5], 'AVANÇADO':[6,7,8]}
     elif etapa == 9 and componente == "MT":
         grupos = {'INSUFICIENTE':[0,1], 'BÁSICO':[2,3,4], 'PROFICIENTE':[5,6], 'AVANÇADO':[7,8,9]}
+    elif etapa == 3 and componente == "LP":
+        grupos = {'INSUFICIENTE':[0,1], 'BÁSICO':[2,3], 'PROFICIENTE':[4,5,6], 'AVANÇADO':[7,8]}
+    elif etapa == 3 and componente == "MT":
+        grupos = {'INSUFICIENTE':[0,1,2], 'BÁSICO':[3,4,5], 'PROFICIENTE':[6,7], 'AVANÇADO':[8,9,10]}
     else:
-        grupos = {'INSUFICIENTE':[0,1], 'BÁSICO':[2,3,4], 'PROFICIENTE':[5,6], 'AVANÇADO':[7,8,9]}
+        raise ValueError(f"Configuração de grupos não definida para etapa {etapa} e componente '{componente}'")
 
     cores = {'INSUFICIENTE':'#FF4136', 'BÁSICO':'#FF851B', 'PROFICIENTE':'#B0E57C', 'AVANÇADO':'#006400'}
     text_colors = {'INSUFICIENTE':'white', 'BÁSICO':'black', 'PROFICIENTE':'black', 'AVANÇADO':'white'}
 
-    valores_categorias, categorias = [], []
+    valores_categorias = []
+    categorias = []
     for cat, indices in grupos.items():
         soma = sum([valores[i] if i < len(valores) else 0 for i in indices])
         valores_categorias.append(soma)
         categorias.append(cat)
+    return categorias, valores_categorias, [cores[c] for c in categorias], [text_colors[c] for c in categorias]
 
-    return categorias, valores_categorias, list(cores.values()), list(text_colors.values())
-
-def make_fig(etapa, componente, inep, edicao, df):
-    filtro = (df['INEP'] == inep) & (df['ETAPA'] == etapa) & (df['COMP_ CURRICULAR'] == componente) & (df['EDIÇÃO'] == edicao)
-    df_sel = df.loc[filtro]
-    if df_sel.empty:
-        return None, None, None
-    nivel_cols = [f"Nivel {i}" for i in range(11) if f"Nivel {i}" in df_sel.columns]
-    valores_str = df_sel[nivel_cols].fillna("0").replace("-", "0")
-    valores = valores_str.apply(pd.to_numeric, errors="coerce").fillna(0).values.flatten()
-
-    categorias = ['INSUFICIENTE', 'BÁSICO', 'PROFICIENTE', 'AVANÇADO']
-    indices_map = {
-        'INSUFICIENTE': [0,1,2] if (etapa == 5 and componente == "MT") else [0,1],  # conforme lógica original para esses casos
-        'BÁSICO': [3,4] if (etapa == 5 and componente == "MT") else [2,3,4],
-        'PROFICIENTE': [5,6],
-        'AVANÇADO': [7,8,9]
-    }
-
-    # Calcular soma em ordem das categorias da legenda para cada categoria
-    valores_categorias = []
-    for cat in categorias:
-        indices = indices_map.get(cat, [])
-        soma = sum([valores[i] if i < len(valores) else 0 for i in indices])
-        valores_categorias.append(soma)
-
-    cores = ['#FF4136', '#FF851B', '#B0E57C', '#006400']
-    text_colors = ['white', 'black', 'black', 'white']
-
-    fig = go.Figure()
-
-    for val, cor, tcor, cat in zip(valores_categorias, cores, text_colors, categorias):
-        fig.add_trace(go.Bar(
-            y=[""],
-            x=[val],
-            name=cat,
-            orientation="h",
-            marker_color=cor,
-            text=[f"{val:.1f}%"],
-            textposition="inside",
-            insidetextanchor="middle",
-            textfont=dict(color=tcor, size=14, family="Arial Bold"),
-        ))
-
-    fig.update_layout(
-        barmode="stack",
-        height=180,
-        margin=dict(t=40,b=40,l=20,r=20),
-        showlegend=True,
-        legend=dict(
-            orientation='h',
-            yanchor='top',
-            y=-0.3,
-            xanchor='center',
-            x=0.5,
-            font=dict(size=14),
-        ),
-        legend_traceorder='normal',  # Não inverte para mostrar de vermelho para verde escuro
-        xaxis=dict(range=[0, 100], showgrid=False, zeroline=False, ticksuffix="%"),
-        yaxis=dict(showticklabels=False),
-        title=f"Desempenho em {componente} - {etapa}º Ano - INEP: {inep} - Edição: {edicao}",
-        title_font=dict(size=18,family="Arial"),
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)'
-    )
-    return fig, categorias, valores_categorias
-
+def map_componente(nome_completo):
+    nome_mapeado = nome_completo.strip().upper()
+    if nome_mapeado in ["LÍNGUA PORTUGUESA", "LP"]:
+        return "LP"
+    elif nome_mapeado in ["MATEMÁTICA", "MT"]:
+        return "MT"
+    else:
+        return nome_completo
 
 def show_aprendizagem_adequada_card(valor, small=False):
     valor_rounded = round(valor, 0)
@@ -145,6 +103,48 @@ def show_aprendizagem_adequada_card(valor, small=False):
             <h1 style='font-size:{font_size}; margin:0;'>{valor_rounded:.0f}%</h1>
         </div>
         """, unsafe_allow_html=True)
+
+def make_fig(etapa, componente, inep, edicao, df):
+    filtro = (df['INEP'] == inep) & (df['ETAPA_NUM'] == etapa) & (df['COMP_ CURRICULAR'] == componente) & (df['EDIÇÃO'] == edicao)
+    df_sel = df.loc[filtro]
+    if df_sel.empty:
+        return None, None, None
+    nivel_cols = [f"Nivel {i}" for i in range(11) if f"Nivel {i}" in df_sel.columns]
+    valores_str = df_sel[nivel_cols].fillna("0").replace("-", "0")
+    valores = valores_str.apply(pd.to_numeric, errors="coerce").fillna(0).values.flatten()
+    componente_mapeado = map_componente(componente)
+    categorias, valores_categorias, cores, text_colors = agrupar_niveis(etapa, componente_mapeado, valores)
+
+    fig = go.Figure()
+    for val, cor, tcor, cat in zip(valores_categorias, cores, text_colors, categorias):
+        fig.add_trace(go.Bar(
+            y=[""],
+            x=[val],
+            name=cat,
+            orientation="h",
+            marker_color=cor,
+            text=[f"{val:.1f}%"],
+            textposition="inside",
+            insidetextanchor="middle",
+            textfont=dict(color=tcor, size=14, family="Arial Bold"),
+        ))
+    fig.update_layout(
+        barmode="stack",
+        height=180,
+        margin=dict(t=40,b=40,l=20,r=20),
+        showlegend=True,
+        legend=dict(orientation='h', yanchor='top', y=-0.3, xanchor='center', x=0.5, font=dict(size=14)),
+        legend_traceorder='normal',
+        xaxis=dict(range=[0, 100], showgrid=False, zeroline=False, ticksuffix="%"),
+        yaxis=dict(showticklabels=False),
+        title=f"Desempenho em {componente} - {etapa}º Ano - INEP: {inep} - Edição: {edicao}",
+        title_font=dict(size=18,family="Arial"),
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)'
+    )
+    return fig, categorias, valores_categorias
+
+# Início da interface
 
 logo = load_logo(caminho_logo)
 if logo:
@@ -168,14 +168,18 @@ if inep_selecionado:
     nome_escola = df.loc[df["INEP"] == inep_selecionado, "NO_MUNICIPIO"].iloc[0]
     st.markdown(f"#### Escola / Município: {nome_escola}")
     st.markdown("Selecione a etapa e o componente curricular para visualizar os resultados.")
-    etapas_disponiveis = sorted(df[df["INEP"] == inep_selecionado]["ETAPA"].unique())
+
+    etapas_disponiveis = sorted(df[df["INEP"] == inep_selecionado]["ETAPA_NUM"].dropna().unique())
     componentes_disponiveis = sorted(df[df["INEP"] == inep_selecionado]["COMP_ CURRICULAR"].unique())
+
     col1, col2 = st.columns(2)
     with col1:
         etapa = st.selectbox("Etapa", etapas_disponiveis)
     with col2:
         componente = st.selectbox("Componente Curricular", componentes_disponiveis)
-    edicoes = sorted(df[(df["INEP"] == inep_selecionado) & (df["ETAPA"] == etapa) & (df["COMP_ CURRICULAR"] == componente)]["EDIÇÃO"].unique())
+
+    # Mostrar gráficos para todas as edições existentes
+    edicoes = sorted(df[(df["INEP"] == inep_selecionado) & (df["ETAPA_NUM"] == etapa) & (df["COMP_ CURRICULAR"] == componente)]["EDIÇÃO"].unique())
 
     for ed in edicoes:
         fig, categorias, valores_categorias = make_fig(etapa, componente, inep_selecionado, ed, df)
@@ -185,7 +189,7 @@ if inep_selecionado:
             with col_grafico:
                 st.plotly_chart(fig, use_container_width=True)
             with col_card:
-                aprendizado = valores_categorias[2] + valores_categorias[3]
+                aprendizado = valores_categorias[2] + valores_categorias[3]  # Proficiente + Avançado
                 show_aprendizagem_adequada_card(aprendizado, small=True)
             st.markdown("<br>", unsafe_allow_html=True)
 
@@ -248,5 +252,3 @@ st.markdown("""
 © 2025 Desenvolvido por sua equipe de análise
 </footer>
 """, unsafe_allow_html=True)
-
-
